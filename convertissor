@@ -1,0 +1,109 @@
+from PIL import Image
+import os
+from pathlib import Path
+
+# Fonction pour obtenir la couleur moyenne d'un bloc de pixels
+def couleur_moyenne(bloc):
+    r, g, b = 0, 0, 0
+    nombre_pixels = len(bloc)
+    for pixel in bloc:
+        r += pixel[0]
+        g += pixel[1]
+        b += pixel[2]
+    return (r // nombre_pixels, g // nombre_pixels, b // nombre_pixels)
+
+# Fonction pour convertir une couleur RGB en une couleur nommée basique
+def couleur_nommée(rgb):
+    r, g, b = rgb
+    if r > 200 and g < 100 and b < 100:
+        return "rouge"
+    elif r < 100 and g > 200 and b < 100:
+        return "vert"
+    elif r < 100 and g < 100 and b > 200:
+        return "bleu"
+    elif r > 200 and g > 200 and b < 100:
+        return "jaune"
+    elif r > 200 and g < 100 and b > 200:
+        return "magenta"
+    elif r < 100 and g > 200 and b > 200:
+        return "cyan"
+    elif r > 200 and g > 200 and b > 200:
+        return "blanc"
+    else:
+        return "noir"
+
+# Fonction pour mapper une couleur nommée à une lettre utilisable dans le script
+def couleur_to_lettre(couleur):
+    lettres = {
+        "rouge": "a",
+        "vert": "b",
+        "bleu": "c",
+        "jaune": "d",
+        "magenta": "e",
+        "cyan": "f",
+        "noir": "g",
+        "blanc": "h"
+    }
+    return lettres.get(couleur, "g")
+
+# Charger l'image avec un chemin absolu
+chemin_image = input("Entrez le chemin absolu de l'image : ")
+try:
+    image = Image.open(chemin_image)
+except FileNotFoundError:
+    print("Erreur : image introuvable.")
+    exit()
+
+largeur, hauteur = image.size
+
+# Demander la taille des blocs
+bloc_taille = int(input("Entrez la taille des blocs (par exemple 8 pour 8x8) : "))
+
+# Diviser l'image en blocs de pixels
+pixels = image.load()
+resultat = []
+pixel_id = 1
+
+for y in range(0, hauteur, bloc_taille):
+    for x in range(0, largeur, bloc_taille):
+        bloc = [pixels[x + dx, y + dy] for dy in range(bloc_taille) for dx in range(bloc_taille) if x + dx < largeur and y + dy < hauteur]
+        couleur = couleur_moyenne(bloc)
+        couleur_finale = couleur_nommée(couleur)
+        resultat.append(f"Pixel {pixel_id} = {couleur_finale}")
+        pixel_id += 1
+
+# Écrire le résultat dans un fichier texte
+chemin_dossier = Path(chemin_image).parent
+chemin_fichier = chemin_dossier / "resultat_pixels.txt"
+with open(chemin_fichier, "w") as fichier:
+    fichier.write("\n".join(resultat))
+
+print(f"Le fichier resultat_pixels.txt a été créé dans {chemin_dossier}.")
+
+# Générer un script compatible Numworks optimisé avec des boucles
+chemin_script = chemin_dossier / "script_kandinsky_numworks.py"
+with open(chemin_script, "w") as script:
+    script.write("from kandinsky import fill_rect as fr\n")
+    script.write("taille_pixel = " + str(bloc_taille) + "\n")
+    script.write("a, b, c, d, e, f, g, h = (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255), (0, 0, 0), (255, 255, 255)\n")
+    script.write("def pixel(x, y, taille, color):\n")
+    script.write("    fr(x, y, taille, taille, eval(color))\n")
+
+    batch_size = hauteur // 4  # Diviser en 4 batchs
+    for batch in range(4):
+        script.write(f"def draw_batch_{batch}():\n")
+        start_y = batch * batch_size
+        end_y = min((batch + 1) * batch_size, hauteur)
+        for y in range(start_y, end_y, bloc_taille):
+            script.write("    x, y = 0, " + str(y) + "\n")
+            script.write("    liste = [")
+            for x in range(0, largeur, bloc_taille):
+                couleur = pixels[x, y]
+                couleur_var = couleur_to_lettre(couleur_nommée(couleur))
+                script.write(f"\"{couleur_var}\", ")
+            script.write("]\n")
+            script.write("    for i, color in enumerate(liste):\n")
+            script.write("        pixel(x + i * taille_pixel, y, taille_pixel, color)\n")
+        script.write(f"draw_batch_{batch}()\n")
+
+print(f"Le script Numworks a été créé : {chemin_script}")
