@@ -1,8 +1,8 @@
 from PIL import Image
-import os
 from pathlib import Path
 
 def couleur_moyenne(bloc):
+    """Calcule la couleur moyenne d'un bloc de pixels."""
     r, g, b = 0, 0, 0
     nombre_pixels = len(bloc)
     for pixel in bloc:
@@ -12,6 +12,7 @@ def couleur_moyenne(bloc):
     return (r // nombre_pixels, g // nombre_pixels, b // nombre_pixels)
 
 def couleur_nommée(rgb):
+    """Associe une couleur moyenne à un nom parmi 8 couleurs."""
     r, g, b = rgb
     if r > 200 and g < 100 and b < 100:
         return "rouge"
@@ -31,6 +32,7 @@ def couleur_nommée(rgb):
         return "noir"
 
 def couleur_to_lettre(couleur):
+    """Transforme un nom de couleur en lettre pour le script NumWorks."""
     lettres = {
         "rouge": "a",
         "vert": "b",
@@ -43,11 +45,19 @@ def couleur_to_lettre(couleur):
     }
     return lettres.get(couleur, "g")
 
+# Demande des chemins à l'utilisateur
 chemin_image = input("Entrez le chemin absolu de l'image : ")
 try:
     image = Image.open(chemin_image)
 except FileNotFoundError:
     print("Erreur : image introuvable.")
+    exit()
+
+# Dossier où enregistrer les fichiers de sortie
+chemin_sortie = input("Entrez le chemin absolu du dossier où enregistrer les fichiers : ")
+chemin_sortie = Path(chemin_sortie)
+if not chemin_sortie.exists():
+    print("Erreur : dossier introuvable.")
     exit()
 
 largeur, hauteur = image.size
@@ -58,36 +68,40 @@ pixels = image.load()
 resultat = []
 pixel_id = 1
 
+# Analyse de l'image bloc par bloc
 for y in range(0, hauteur, bloc_taille):
     for x in range(0, largeur, bloc_taille):
+        # Récupération des pixels du bloc sans dépasser les bords de l'image
         bloc = [pixels[x + dx, y + dy] for dy in range(bloc_taille) for dx in range(bloc_taille) if x + dx < largeur and y + dy < hauteur]
         couleur = couleur_moyenne(bloc)
         couleur_finale = couleur_nommée(couleur)
         resultat.append(f"Pixel {pixel_id} = {couleur_finale}")
         pixel_id += 1
 
-chemin_dossier = Path(chemin_image).parent
-chemin_fichier = chemin_dossier / "resultat_pixels.txt"
+# Création du fichier texte avec les couleurs détectées
+chemin_fichier = chemin_sortie / "resultat_pixels.txt"
 with open(chemin_fichier, "w") as fichier:
     fichier.write("\n".join(resultat))
 
-print(f"Le fichier resultat_pixels.txt a été créé dans {chemin_dossier}.")
+print(f"Le fichier resultat_pixels.txt a été créé dans {chemin_sortie}.")
 
-chemin_script = chemin_dossier / "script_kandinsky_numworks.py"
+# Création du script pour NumWorks
+chemin_script = chemin_sortie / "script_kandinsky_numworks.py"
 with open(chemin_script, "w") as script:
     script.write("from kandinsky import fill_rect as fr\n")
-    script.write("taille_pixel = " + str(bloc_taille) + "\n")
+    script.write(f"taille_pixel = {bloc_taille}\n")
     script.write("a, b, c, d, e, f, g, h = (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255), (0, 0, 0), (255, 255, 255)\n")
     script.write("def pixel(x, y, taille, color):\n")
     script.write("    fr(x, y, taille, taille, eval(color))\n")
 
+    # Division en 4 parties pour éviter que la calculatrice ne freeze
     batch_size = hauteur // 4
     for batch in range(4):
         script.write(f"def draw_batch_{batch}():\n")
         start_y = batch * batch_size
         end_y = min((batch + 1) * batch_size, hauteur)
         for y in range(start_y, end_y, bloc_taille):
-            script.write("    x, y = 0, " + str(y) + "\n")
+            script.write(f"    x, y = 0, {y}\n")
             script.write("    liste = [")
             for x in range(0, largeur, bloc_taille):
                 couleur = pixels[x, y]
@@ -98,4 +112,4 @@ with open(chemin_script, "w") as script:
             script.write("        pixel(x + i * taille_pixel, y, taille_pixel, color)\n")
         script.write(f"draw_batch_{batch}()\n")
 
-print(f"Le script Numworks a été créé : {chemin_script}")
+print(f"Le script NumWorks a été créé : {chemin_script}")
